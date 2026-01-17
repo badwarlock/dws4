@@ -115,7 +115,7 @@ describe('permissionsManager', () => {
       expect(selected).toHaveLength(0);
     });
 
-    it('не должен удалять зависимость, если она используется другим разрешением', () => {
+    it('должен каскадно удалить разрешения, которые зависят от удаляемого', () => {
       // Добавим WRITE_USERS (добавятся READ_USERS и WRITE_USERS)
       let selected = togglePermission(mockPermissions[1], mockPermissions, []);
       expect(selected).toHaveLength(2);
@@ -125,17 +125,35 @@ describe('permissionsManager', () => {
       expect(selected).toHaveLength(3);
 
       // Удалим WRITE_USERS
+      // Каскадно должен удалиться DELETE_USERS (т.к. он зависит от WRITE_USERS)
       selected = togglePermission(
         mockPermissions[1],
         mockPermissions,
         selected
       );
 
-      // READ_USERS не должен быть удален, т.к. используется DELETE_USERS
-      expect(selected).toHaveLength(2);
+      // Должен остаться только READ_USERS
+      expect(selected).toHaveLength(1);
       expect(selected.find((p) => p.id === '1')).toBeDefined(); // READ_USERS
-      expect(selected.find((p) => p.id === '3')).toBeDefined(); // DELETE_USERS
       expect(selected.find((p) => p.id === '2')).toBeUndefined(); // WRITE_USERS удален
+      expect(selected.find((p) => p.id === '3')).toBeUndefined(); // DELETE_USERS удален каскадно
+    });
+
+    it('должен каскадно удалить все зависимые разрешения при удалении корневой зависимости', () => {
+      // Добавим DELETE_USERS (добавятся READ_USERS, WRITE_USERS и DELETE_USERS)
+      let selected = togglePermission(mockPermissions[2], mockPermissions, []);
+      expect(selected).toHaveLength(3);
+
+      // Удалим READ_USERS (корневая зависимость)
+      // Каскадно должны удалиться WRITE_USERS и DELETE_USERS
+      selected = togglePermission(
+        mockPermissions[0],
+        mockPermissions,
+        selected
+      );
+
+      // Все должны быть удалены
+      expect(selected).toHaveLength(0);
     });
 
     it('должен корректно работать с переключением туда-обратно', () => {

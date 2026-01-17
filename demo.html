@@ -216,19 +216,44 @@
         }
 
         function removePermissionWithDependencies(permission, selectedPermissions) {
-            let result = selectedPermissions.filter(p => p.id !== permission.id);
+            const idsToRemove = new Set();
 
-            if (permission.dependencies && permission.dependencies.length > 0) {
-                for (const dependency of permission.dependencies) {
-                    const isUsedByOthers = result.some(p =>
-                        p.dependencies.some(dep => dep.id === dependency.id)
-                    );
+            // Рекурсивная функция для поиска всех разрешений, которые зависят от данного
+            function collectDependentPermissions(permId) {
+                idsToRemove.add(permId);
 
-                    if (!isUsedByOthers) {
-                        result = result.filter(p => p.id !== dependency.id);
+                // Находим все разрешения, которые зависят от permId
+                selectedPermissions.forEach(p => {
+                    if (p.dependencies.some(dep => dep.id === permId) && !idsToRemove.has(p.id)) {
+                        collectDependentPermissions(p.id);
                     }
-                }
+                });
             }
+
+            // Собираем все разрешения для удаления (само разрешение + все что от него зависит)
+            collectDependentPermissions(permission.id);
+
+            // Удаляем все собранные разрешения
+            let result = selectedPermissions.filter(p => !idsToRemove.has(p.id));
+
+            // Теперь для КАЖДОГО удаленного разрешения проверяем его зависимости
+            // и удаляем их, если они больше не используются оставшимися разрешениями
+            const removedPermissions = selectedPermissions.filter(p => idsToRemove.has(p.id));
+
+            removedPermissions.forEach(removedPerm => {
+                if (removedPerm.dependencies && removedPerm.dependencies.length > 0) {
+                    removedPerm.dependencies.forEach(dependency => {
+                        // Проверяем, используется ли эта зависимость оставшимися разрешениями
+                        const isUsedByRemaining = result.some(p =>
+                            p.dependencies.some(dep => dep.id === dependency.id)
+                        );
+
+                        if (!isUsedByRemaining) {
+                            result = result.filter(p => p.id !== dependency.id);
+                        }
+                    });
+                }
+            });
 
             return result;
         }
@@ -422,7 +447,8 @@
                 <div className="app-container">
                     <h1>Демонстрация управления разрешениями</h1>
                     <p style={{textAlign: 'center', color: '#666', marginBottom: '20px'}}>
-                        Кликайте на разрешения, чтобы выбрать их. Зависимости добавляются автоматически!
+                        Кликайте на разрешения, чтобы выбрать их. Зависимости добавляются автоматически!<br/>
+                        <strong>⚠️ Каскадное удаление:</strong> При снятии выбора с разрешения также удаляются все разрешения, которые от него зависят.
                     </p>
                     <PermissionsList
                         allPermissions={mockPermissions}

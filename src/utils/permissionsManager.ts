@@ -45,8 +45,13 @@ function addPermissionWithDependencies(
 }
 
 /**
- * Удаляет разрешение и его зависимости из массива выбранных разрешений
- * Зависимость удаляется только если она больше не используется другими выбранными разрешениями
+ * Удаляет разрешение из массива выбранных разрешений с каскадным удалением
+ *
+ * Логика удаления:
+ * 1. Удаляется само разрешение
+ * 2. Каскадно удаляются все разрешения, которые зависят от удаляемого
+ * 3. Удаляются зависимости удаленных разрешений, если они больше не используются
+ *
  * @param permission - разрешение для удаления
  * @param selectedPermissions - текущий массив выбранных разрешений
  * @returns новый массив выбранных разрешений
@@ -55,23 +60,44 @@ function removePermissionWithDependencies(
   permission: PlatformPermissionInstance,
   selectedPermissions: Array<PlatformPermissionInstance>
 ): Array<PlatformPermissionInstance> {
-  // Удаляем само разрешение
-  let result = selectedPermissions.filter((p) => p.id !== permission.id);
+  const idsToRemove = new Set<string>();
 
-  // Проверяем зависимости
-  if (permission.dependencies && permission.dependencies.length > 0) {
-    for (const dependency of permission.dependencies) {
-      // Проверяем, используется ли эта зависимость другими выбранными разрешениями
-      const isUsedByOthers = result.some((p) =>
-        p.dependencies.some((dep) => dep.id === dependency.id)
-      );
+  // Рекурсивная функция для поиска всех разрешений, которые зависят от данного
+  function collectDependentPermissions(permId: string) {
+    idsToRemove.add(permId);
 
-      // Если зависимость не используется другими разрешениями, удаляем её
-      if (!isUsedByOthers) {
-        result = result.filter((p) => p.id !== dependency.id);
+    // Находим все разрешения, которые зависят от permId
+    selectedPermissions.forEach((p) => {
+      if (p.dependencies.some((dep) => dep.id === permId) && !idsToRemove.has(p.id)) {
+        collectDependentPermissions(p.id);
       }
-    }
+    });
   }
+
+  // Собираем все разрешения для удаления (само разрешение + все что от него зависит)
+  collectDependentPermissions(permission.id);
+
+  // Удаляем все собранные разрешения
+  let result = selectedPermissions.filter((p) => !idsToRemove.has(p.id));
+
+  // Теперь для КАЖДОГО удаленного разрешения проверяем его зависимости
+  // и удаляем их, если они больше не используются оставшимися разрешениями
+  const removedPermissions = selectedPermissions.filter((p) => idsToRemove.has(p.id));
+
+  removedPermissions.forEach((removedPerm) => {
+    if (removedPerm.dependencies && removedPerm.dependencies.length > 0) {
+      removedPerm.dependencies.forEach((dependency) => {
+        // Проверяем, используется ли эта зависимость оставшимися разрешениями
+        const isUsedByRemaining = result.some((p) =>
+          p.dependencies.some((dep) => dep.id === dependency.id)
+        );
+
+        if (!isUsedByRemaining) {
+          result = result.filter((p) => p.id !== dependency.id);
+        }
+      });
+    }
+  });
 
   return result;
 }

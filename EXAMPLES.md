@@ -151,7 +151,7 @@ selectedPermissions = [
 
 ---
 
-## Сценарий 5: Умное удаление зависимостей
+## Сценарий 5: Каскадное удаление зависимых разрешений
 
 ### Исходные данные
 
@@ -177,11 +177,11 @@ let selectedPermissions = [
 
 ```javascript
 selectedPermissions = [
-  { id: '1', code: 'READ_USERS' }, // Остался! Используется в DELETE_USERS
-  { id: '3', code: 'DELETE_USERS' },
+  { id: '1', code: 'READ_USERS' }, // Остался!
 ];
 // EDIT_USERS удален
-// READ_USERS остался, т.к. используется в DELETE_USERS
+// DELETE_USERS удален каскадно (зависел от EDIT_USERS)
+// READ_USERS остался (его зависимости были удалены)
 ```
 
 ---
@@ -212,6 +212,40 @@ let selectedPermissions = [
 selectedPermissions = [];
 // EDIT_USERS удален
 // READ_USERS тоже удален, т.к. больше не используется
+```
+
+---
+
+## Сценарий 6.5: Каскадное удаление корневой зависимости
+
+### Исходные данные
+
+```javascript
+const permissions = [
+  { id: '1', code: 'READ_USERS', dependencies: [] },
+  { id: '2', code: 'EDIT_USERS', dependencies: [{ id: '1' }] },
+  { id: '3', code: 'DELETE_USERS', dependencies: [{ id: '1' }, { id: '2' }] },
+];
+
+let selectedPermissions = [
+  { id: '1', code: 'READ_USERS' },
+  { id: '2', code: 'EDIT_USERS' },
+  { id: '3', code: 'DELETE_USERS' },
+];
+```
+
+### Действия пользователя
+
+1. Клик на "READ_USERS" (для удаления корневой зависимости)
+
+### Результат
+
+```javascript
+selectedPermissions = [];
+// READ_USERS удален
+// EDIT_USERS удален каскадно (зависел от READ_USERS)
+// DELETE_USERS удален каскадно (зависел от READ_USERS)
+// Все зависимые разрешения удалены рекурсивно
 ```
 
 ---
