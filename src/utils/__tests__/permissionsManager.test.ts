@@ -1,7 +1,7 @@
 import { togglePermission } from '../permissionsManager';
 import { PlatformPermissionInstance } from '../../types/permissions';
 
-describe('permissionsManager', () => {
+describe('permissionsManager - Simple Toggle', () => {
   const mockPermissions: Array<PlatformPermissionInstance> = [
     {
       id: '1',
@@ -50,126 +50,114 @@ describe('permissionsManager', () => {
   ];
 
   describe('togglePermission', () => {
-    it('должен добавить разрешение без зависимостей', () => {
-      const result = togglePermission(mockPermissions[0], mockPermissions, []);
+    it('должен добавить разрешение в пустой массив', () => {
+      const result = togglePermission(mockPermissions[0], []);
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('1');
     });
 
-    it('должен добавить разрешение с зависимостями', () => {
-      const result = togglePermission(mockPermissions[1], mockPermissions, []);
+    it('НЕ должен автоматически добавлять зависимости', () => {
+      // Добавляем WRITE_USERS который зависит от READ_USERS
+      const result = togglePermission(mockPermissions[1], []);
 
-      expect(result).toHaveLength(2);
-      expect(result.find((p) => p.id === '1')).toBeDefined(); // зависимость
-      expect(result.find((p) => p.id === '2')).toBeDefined(); // само разрешение
+      // Должен быть добавлен ТОЛЬКО WRITE_USERS без READ_USERS
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('2');
+      expect(result.find((p) => p.id === '1')).toBeUndefined(); // READ_USERS НЕ добавлен
     });
 
-    it('должен добавить разрешение с множественными зависимостями', () => {
-      const result = togglePermission(mockPermissions[2], mockPermissions, []);
+    it('должен добавить разрешение с множественными зависимостями БЕЗ автодобавления зависимостей', () => {
+      const result = togglePermission(mockPermissions[2], []);
 
-      expect(result).toHaveLength(3);
-      expect(result.find((p) => p.id === '1')).toBeDefined(); // зависимость
-      expect(result.find((p) => p.id === '2')).toBeDefined(); // зависимость
-      expect(result.find((p) => p.id === '3')).toBeDefined(); // само разрешение
+      // Должен быть добавлен ТОЛЬКО DELETE_USERS
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('3');
+      expect(result.find((p) => p.id === '1')).toBeUndefined(); // READ_USERS НЕ добавлен
+      expect(result.find((p) => p.id === '2')).toBeUndefined(); // WRITE_USERS НЕ добавлен
     });
 
-    it('не должен добавлять дубликаты при добавлении разрешения с уже существующими зависимостями', () => {
-      // Сначала добавим READ_USERS
-      let result = togglePermission(mockPermissions[0], mockPermissions, []);
+    it('не должен добавлять дубликаты', () => {
+      // Добавляем READ_USERS
+      let result = togglePermission(mockPermissions[0], []);
       expect(result).toHaveLength(1);
 
-      // Теперь добавим WRITE_USERS, который зависит от READ_USERS
-      result = togglePermission(mockPermissions[1], mockPermissions, result);
-      expect(result).toHaveLength(2);
+      // Пытаемся добавить READ_USERS снова
+      result = togglePermission(mockPermissions[0], result);
 
-      // Проверяем, что READ_USERS встречается только один раз
-      const readUsersCount = result.filter((p) => p.id === '1').length;
-      expect(readUsersCount).toBe(1);
+      // Должен удалиться (toggle)
+      expect(result).toHaveLength(0);
     });
 
-    it('должен удалить разрешение без зависимостей', () => {
+    it('должен удалить разрешение', () => {
       const selected = [mockPermissions[0]];
-      const result = togglePermission(
-        mockPermissions[0],
-        mockPermissions,
-        selected
-      );
+      const result = togglePermission(mockPermissions[0], selected);
 
       expect(result).toHaveLength(0);
     });
 
-    it('должен удалить разрешение и его зависимости, если они не используются другими', () => {
-      // Добавим WRITE_USERS (который добавит и READ_USERS)
-      let selected = togglePermission(mockPermissions[1], mockPermissions, []);
+    it('НЕ должен каскадно удалять зависимые разрешения', () => {
+      // Выбираем все три разрешения вручную
+      let selected = [mockPermissions[0], mockPermissions[1], mockPermissions[2]];
+
+      // Удаляем WRITE_USERS
+      selected = togglePermission(mockPermissions[1], selected);
+
+      // Должен остаться READ_USERS и DELETE_USERS
+      // DELETE_USERS НЕ удаляется каскадно (это обязанность валидации)
       expect(selected).toHaveLength(2);
-
-      // Удалим WRITE_USERS
-      selected = togglePermission(
-        mockPermissions[1],
-        mockPermissions,
-        selected
-      );
-
-      // Должны быть удалены оба: WRITE_USERS и READ_USERS
-      expect(selected).toHaveLength(0);
-    });
-
-    it('должен каскадно удалить разрешения, которые зависят от удаляемого', () => {
-      // Добавим WRITE_USERS (добавятся READ_USERS и WRITE_USERS)
-      let selected = togglePermission(mockPermissions[1], mockPermissions, []);
-      expect(selected).toHaveLength(2);
-
-      // Добавим DELETE_USERS (добавится DELETE_USERS, READ_USERS и WRITE_USERS уже есть)
-      selected = togglePermission(mockPermissions[2], mockPermissions, selected);
-      expect(selected).toHaveLength(3);
-
-      // Удалим WRITE_USERS
-      // Каскадно должен удалиться DELETE_USERS (т.к. он зависит от WRITE_USERS)
-      selected = togglePermission(
-        mockPermissions[1],
-        mockPermissions,
-        selected
-      );
-
-      // Должен остаться только READ_USERS
-      expect(selected).toHaveLength(1);
       expect(selected.find((p) => p.id === '1')).toBeDefined(); // READ_USERS
       expect(selected.find((p) => p.id === '2')).toBeUndefined(); // WRITE_USERS удален
-      expect(selected.find((p) => p.id === '3')).toBeUndefined(); // DELETE_USERS удален каскадно
+      expect(selected.find((p) => p.id === '3')).toBeDefined(); // DELETE_USERS остался (!)
     });
 
-    it('должен каскадно удалить все зависимые разрешения при удалении корневой зависимости', () => {
-      // Добавим DELETE_USERS (добавятся READ_USERS, WRITE_USERS и DELETE_USERS)
-      let selected = togglePermission(mockPermissions[2], mockPermissions, []);
-      expect(selected).toHaveLength(3);
+    it('НЕ должен удалять зависимости при удалении разрешения', () => {
+      // Выбираем READ_USERS и WRITE_USERS вручную
+      let selected = [mockPermissions[0], mockPermissions[1]];
 
-      // Удалим READ_USERS (корневая зависимость)
-      // Каскадно должны удалиться WRITE_USERS и DELETE_USERS
-      selected = togglePermission(
-        mockPermissions[0],
-        mockPermissions,
-        selected
-      );
+      // Удаляем WRITE_USERS
+      selected = togglePermission(mockPermissions[1], selected);
 
-      // Все должны быть удалены
-      expect(selected).toHaveLength(0);
+      // Должен остаться READ_USERS (НЕ удаляется вместе с WRITE_USERS)
+      expect(selected).toHaveLength(1);
+      expect(selected.find((p) => p.id === '1')).toBeDefined(); // READ_USERS остался
     });
 
     it('должен корректно работать с переключением туда-обратно', () => {
       let selected: Array<PlatformPermissionInstance> = [];
 
       // Добавляем
-      selected = togglePermission(mockPermissions[1], mockPermissions, selected);
-      expect(selected).toHaveLength(2);
+      selected = togglePermission(mockPermissions[0], selected);
+      expect(selected).toHaveLength(1);
 
       // Удаляем
-      selected = togglePermission(mockPermissions[1], mockPermissions, selected);
+      selected = togglePermission(mockPermissions[0], selected);
       expect(selected).toHaveLength(0);
 
       // Снова добавляем
-      selected = togglePermission(mockPermissions[1], mockPermissions, selected);
+      selected = togglePermission(mockPermissions[0], selected);
+      expect(selected).toHaveLength(1);
+    });
+
+    it('должен работать с множественными разрешениями', () => {
+      let selected: Array<PlatformPermissionInstance> = [];
+
+      // Добавляем разрешения по одному
+      selected = togglePermission(mockPermissions[0], selected);
+      expect(selected).toHaveLength(1);
+
+      selected = togglePermission(mockPermissions[1], selected);
       expect(selected).toHaveLength(2);
+
+      selected = togglePermission(mockPermissions[2], selected);
+      expect(selected).toHaveLength(3);
+
+      // Удаляем среднее
+      selected = togglePermission(mockPermissions[1], selected);
+      expect(selected).toHaveLength(2);
+      expect(selected.find((p) => p.id === '1')).toBeDefined();
+      expect(selected.find((p) => p.id === '2')).toBeUndefined();
+      expect(selected.find((p) => p.id === '3')).toBeDefined();
     });
   });
 });

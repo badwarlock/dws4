@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Демо: Простой Toggle + Валидация</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .app-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f0f7ff;
+            border-radius: 4px;
+            border-left: 4px solid #2196f3;
+        }
+        .description strong {
+            color: #1976d2;
+        }
+        .validation-status {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .validation-status.valid {
+            background: #e8f5e9;
+            border: 1px solid #4caf50;
+            color: #2e7d32;
+        }
+        .validation-status.invalid {
+            background: #ffebee;
+            border: 1px solid #f44336;
+            color: #c62828;
+        }
+        .missing-deps {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .missing-deps ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+        .missing-deps li {
+            margin: 3px 0;
+        }
+        .permissions-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .permissions-header h2 {
+            margin: 0;
+            font-size: 24px;
+            color: #333;
+        }
+        .permissions-header button {
+            padding: 8px 16px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .permissions-header button:hover {
+            background-color: #d32f2f;
+        }
+        .selected-count {
+            padding: 6px 12px;
+            background-color: #2196f3;
+            color: white;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .permissions-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        .permission-item {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background-color: white;
+        }
+        .permission-item:hover {
+            border-color: #2196f3;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+        }
+        .permission-item.selected {
+            border-color: #4caf50;
+            background-color: #f1f8f4;
+        }
+        .permission-item.has-missing-deps {
+            border-color: #ff9800;
+            background-color: #fff8e1;
+        }
+        .permission-item.inactive {
+            opacity: 0.6;
+            background-color: #f5f5f5;
+        }
+        .permission-main {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .permission-main input[type='checkbox'] {
+            margin-top: 4px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .permission-info h3 {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .permission-code {
+            margin: 0 0 8px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #666;
+            background-color: #f5f5f5;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        .permission-description {
+            margin: 0;
+            font-size: 14px;
+            color: #666;
+        }
+        .permission-dependencies {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .dependencies-label {
+            font-weight: 600;
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .permission-dependencies ul {
+            margin: 8px 0 0 0;
+            padding-left: 20px;
+        }
+        .permission-dependencies li {
+            font-size: 13px;
+            color: #666;
+            margin: 4px 0;
+        }
+        .warning-badge {
+            display: inline-block;
+            margin-left: 10px;
+            padding: 2px 8px;
+            background: #ff9800;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .selected-permissions {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+        }
+        .selected-permissions h3 {
+            margin: 0 0 12px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .selected-permissions ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .selected-permissions li {
+            margin: 6px 0;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useCallback, useMemo } = React;
+
+        // Простая функция toggle - без автоматического управления зависимостями
+        function togglePermission(permission, selectedPermissions) {
+            const isSelected = selectedPermissions.some(p => p.id === permission.id);
+
+            if (isSelected) {
+                return selectedPermissions.filter(p => p.id !== permission.id);
+            } else {
+                return [...selectedPermissions, permission];
+            }
+        }
+
+        // Функция валидации - находит отсутствующие зависимости
+        function getMissingDependencies(selectedPermissions) {
+            const missingDeps = [];
+            const selectedIds = new Set(selectedPermissions.map(p => p.id));
+
+            selectedPermissions.forEach(permission => {
+                if (permission.dependencies && permission.dependencies.length > 0) {
+                    permission.dependencies.forEach(dependency => {
+                        if (!selectedIds.has(dependency.id)) {
+                            missingDeps.push({
+                                permissionId: permission.id,
+                                permissionCode: permission.code,
+                                permissionName: permission.name,
+                                missingDependencyId: dependency.id,
+                                missingDependencyCode: dependency.code,
+                                missingDependencyName: dependency.name,
+                            });
+                        }
+                    });
+                }
+            });
+
+            return missingDeps;
+        }
+
+        // Хук для управления разрешениями
+        function usePermissions(allPermissions, initialSelected = []) {
+            const [selectedPermissions, setSelectedPermissions] = useState(initialSelected);
+
+            const handlePermissionClick = useCallback((permission) => {
+                setSelectedPermissions(current =>
+                    togglePermission(permission, current)
+                );
+            }, []);
+
+            const isPermissionSelected = useCallback((permissionId) => {
+                return selectedPermissions.some(p => p.id === permissionId);
+            }, [selectedPermissions]);
+
+            const clearSelectedPermissions = useCallback(() => {
+                setSelectedPermissions([]);
+            }, []);
+
+            // Валидация
+            const validationResult = useMemo(() => {
+                const missing = getMissingDependencies(selectedPermissions);
+                return {
+                    isValid: missing.length === 0,
+                    missingDependencies: missing,
+                };
+            }, [selectedPermissions]);
+
+            // Разрешения с проблемами
+            const permissionsWithIssues = useMemo(() => {
+                const issueIds = new Set(validationResult.missingDependencies.map(d => d.permissionId));
+                return issueIds;
+            }, [validationResult]);
+
+            return {
+                selectedPermissions,
+                handlePermissionClick,
+                isPermissionSelected,
+                clearSelectedPermissions,
+                setSelectedPermissions,
+                validationResult,
+                permissionsWithIssues,
+            };
+        }
+
+        // Компонент списка разрешений
+        function PermissionsList({ allPermissions, onSelectionChange }) {
+            const {
+                selectedPermissions,
+                handlePermissionClick,
+                isPermissionSelected,
+                clearSelectedPermissions,
+                validationResult,
+                permissionsWithIssues,
+            } = usePermissions(allPermissions);
+
+            React.useEffect(() => {
+                if (onSelectionChange) {
+                    onSelectionChange(selectedPermissions);
+                }
+            }, [selectedPermissions, onSelectionChange]);
+
+            React.useEffect(() => {
+                console.log('Validation Result:', validationResult);
+            }, [validationResult]);
+
+            return (
+                <div>
+                    {/* Статус валидации */}
+                    <div className={`validation-status ${validationResult.isValid ? 'valid' : 'invalid'}`}>
+                        {validationResult.isValid ? (
+                            <div>✅ Все зависимости присутствуют - валидация пройдена!</div>
+                        ) : (
+                            <div>
+                                ⚠️ Обнаружены отсутствующие зависимости!
+                                <div className="missing-deps">
+                                    <ul>
+                                        {validationResult.missingDependencies.map((dep, idx) => (
+                                            <li key={idx}>
+                                                <strong>{dep.permissionName}</strong> требует: <strong>{dep.missingDependencyName}</strong> ({dep.missingDependencyCode})
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="permissions-list">
+                        <div className="permissions-header">
+                            <h2>Разрешения</h2>
+                            <button onClick={clearSelectedPermissions}>Очистить выбор</button>
+                            <div className="selected-count">
+                                Выбрано: {selectedPermissions.length}
+                            </div>
+                        </div>
+
+                        <div className="permissions-items">
+                            {allPermissions.map(permission => {
+                                const isSelected = isPermissionSelected(permission.id);
+                                const hasMissingDeps = permissionsWithIssues.has(permission.id);
+                                const hasDependencies = permission.dependencies && permission.dependencies.length > 0;
+
+                                return (
+                                    <div
+                                        key={permission.id}
+                                        className={`permission-item ${isSelected ? 'selected' : ''} ${
+                                            hasMissingDeps ? 'has-missing-deps' : ''
+                                        } ${!permission.is_active ? 'inactive' : ''}`}
+                                        onClick={() => handlePermissionClick(permission)}
+                                    >
+                                        <div className="permission-main">
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => {}}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <div className="permission-info">
+                                                <h3>
+                                                    {permission.name}
+                                                    {hasMissingDeps && <span className="warning-badge">⚠️ Ошибка</span>}
+                                                </h3>
+                                                <p className="permission-code">{permission.code}</p>
+                                                <p className="permission-description">{permission.description}</p>
+                                            </div>
+                                        </div>
+
+                                        {hasDependencies && (
+                                            <div className="permission-dependencies">
+                                                <span className="dependencies-label">Зависимости:</span>
+                                                <ul>
+                                                    {permission.dependencies.map(dep => (
+                                                        <li key={dep.id}>
+                                                            {dep.name} ({dep.code})
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="selected-permissions">
+                            <h3>Выбранные разрешения:</h3>
+                            {selectedPermissions.length === 0 ? (
+                                <p>Ничего не выбрано</p>
+                            ) : (
+                                <ul>
+                                    {selectedPermissions.map(permission => (
+                                        <li key={permission.id}>
+                                            {permission.name} ({permission.code})
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Демо-приложение
+        function App() {
+            const mockPermissions = [
+                {
+                    id: '1',
+                    code: 'READ_USERS',
+                    name: 'Чтение пользователей',
+                    description: 'Позволяет просматривать список пользователей',
+                    is_active: true,
+                    dependencies: [],
+                    created: '2025-01-01T00:00:00Z',
+                },
+                {
+                    id: '2',
+                    code: 'WRITE_USERS',
+                    name: 'Запись пользователей',
+                    description: 'Позволяет создавать и редактировать пользователей',
+                    is_active: true,
+                    dependencies: [
+                        { id: '1', code: 'READ_USERS', name: 'Чтение пользователей' },
+                    ],
+                    created: '2025-01-01T00:00:00Z',
+                },
+                {
+                    id: '3',
+                    code: 'DELETE_USERS',
+                    name: 'Удаление пользователей',
+                    description: 'Позволяет удалять пользователей',
+                    is_active: true,
+                    dependencies: [
+                        { id: '1', code: 'READ_USERS', name: 'Чтение пользователей' },
+                        { id: '2', code: 'WRITE_USERS', name: 'Запись пользователей' },
+                    ],
+                    created: '2025-01-01T00:00:00Z',
+                },
+                {
+                    id: '4',
+                    code: 'READ_REPORTS',
+                    name: 'Чтение отчетов',
+                    description: 'Позволяет просматривать отчеты',
+                    is_active: true,
+                    dependencies: [],
+                    created: '2025-01-01T00:00:00Z',
+                },
+                {
+                    id: '5',
+                    code: 'ADMIN_ACCESS',
+                    name: 'Доступ к админ-панели',
+                    description: 'Полный доступ к административной панели',
+                    is_active: false,
+                    dependencies: [
+                        { id: '1', code: 'READ_USERS', name: 'Чтение пользователей' },
+                        { id: '2', code: 'WRITE_USERS', name: 'Запись пользователей' },
+                        { id: '3', code: 'DELETE_USERS', name: 'Удаление пользователей' },
+                    ],
+                    created: '2025-01-01T00:00:00Z',
+                },
+            ];
+
+            const handleSelectionChange = (selected) => {
+                console.log('Выбранные разрешения:', selected);
+                console.log('Коды:', selected.map(p => p.code));
+            };
+
+            return (
+                <div className="app-container">
+                    <h1>Простой Toggle + Joi Валидация</h1>
+                    <div className="description">
+                        <strong>Новая логика:</strong> Выбор разрешений - простой toggle (добавить/удалить).<br/>
+                        Зависимости НЕ добавляются/удаляются автоматически.<br/>
+                        <strong>Валидация</strong> проверяет что все зависимости присутствуют и показывает ошибки.
+                    </div>
+                    <PermissionsList
+                        allPermissions={mockPermissions}
+                        onSelectionChange={handleSelectionChange}
+                    />
+                </div>
+            );
+        }
+
+        // Рендеринг
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
