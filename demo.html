@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Демо: Управление разрешениями</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .app-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .permissions-list {
+            margin-top: 20px;
+        }
+        .permissions-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .permissions-header h2 {
+            margin: 0;
+            font-size: 24px;
+            color: #333;
+        }
+        .permissions-header button {
+            padding: 8px 16px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .permissions-header button:hover {
+            background-color: #d32f2f;
+        }
+        .selected-count {
+            padding: 6px 12px;
+            background-color: #2196f3;
+            color: white;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .permissions-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        .permission-item {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background-color: white;
+        }
+        .permission-item:hover {
+            border-color: #2196f3;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+        }
+        .permission-item.selected {
+            border-color: #4caf50;
+            background-color: #f1f8f4;
+        }
+        .permission-item.inactive {
+            opacity: 0.6;
+            background-color: #f5f5f5;
+        }
+        .permission-main {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .permission-main input[type='checkbox'] {
+            margin-top: 4px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .permission-info {
+            flex: 1;
+        }
+        .permission-info h3 {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .permission-code {
+            margin: 0 0 8px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #666;
+            background-color: #f5f5f5;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        .permission-description {
+            margin: 0;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+        }
+        .permission-dependencies {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .dependencies-label {
+            font-weight: 600;
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .permission-dependencies ul {
+            margin: 8px 0 0 0;
+            padding-left: 20px;
+        }
+        .permission-dependencies li {
+            font-size: 13px;
+            color: #666;
+            margin: 4px 0;
+        }
+        .selected-permissions {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+        }
+        .selected-permissions h3 {
+            margin: 0 0 12px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .selected-permissions ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .selected-permissions li {
+            margin: 6px 0;
+            font-size: 14px;
+            color: #555;
+        }
+        .selected-permissions p {
+            margin: 0;
+            color: #999;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useCallback } = React;
+
+        // Утилита для управления разрешениями
+        function togglePermission(permission, allPermissions, selectedPermissions) {
+            const isSelected = selectedPermissions.some(p => p.id === permission.id);
+
+            if (isSelected) {
+                return removePermissionWithDependencies(permission, selectedPermissions);
+            } else {
+                return addPermissionWithDependencies(permission, allPermissions, selectedPermissions);
+            }
+        }
+
+        function addPermissionWithDependencies(permission, allPermissions, selectedPermissions) {
+            const result = [...selectedPermissions];
+            const toAdd = [];
+
+            if (permission.dependencies && permission.dependencies.length > 0) {
+                for (const dependency of permission.dependencies) {
+                    const alreadySelected = result.find(p => p.id === dependency.id);
+                    const alreadyInToAdd = toAdd.find(p => p.id === dependency.id);
+
+                    if (!alreadySelected && !alreadyInToAdd) {
+                        const dependencyFull = allPermissions.find(p => p.id === dependency.id);
+                        if (dependencyFull) {
+                            toAdd.push(dependencyFull);
+                        }
+                    }
+                }
+            }
+
+            const alreadySelected = result.find(p => p.id === permission.id);
+            if (!alreadySelected) {
+                toAdd.push(permission);
+            }
+
+            return [...result, ...toAdd];
+        }
+
+        function removePermissionWithDependencies(permission, selectedPermissions) {
+            let result = selectedPermissions.filter(p => p.id !== permission.id);
+
+            if (permission.dependencies && permission.dependencies.length > 0) {
+                for (const dependency of permission.dependencies) {
+                    const isUsedByOthers = result.some(p =>
+                        p.dependencies.some(dep => dep.id === dependency.id)
+                    );
+
+                    if (!isUsedByOthers) {
+                        result = result.filter(p => p.id !== dependency.id);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        // React хук
+        function usePermissions(allPermissions, initialSelected = []) {
+            const [selectedPermissions, setSelectedPermissions] = useState(initialSelected);
+
+            const handlePermissionClick = useCallback((permission) => {
+                setSelectedPermissions(current =>
+                    togglePermission(permission, allPermissions, current)
+                );
+            }, [allPermissions]);
+
+            const isPermissionSelected = useCallback((permissionId) => {
+                return selectedPermissions.some(p => p.id === permissionId);
+            }, [selectedPermissions]);
+
+            const clearSelectedPermissions = useCallback(() => {
+                setSelectedPermissions([]);
+            }, []);
+
+            return {
+                selectedPermissions,
+                handlePermissionClick,
+                isPermissionSelected,
+                clearSelectedPermissions,
+            };
+        }
+
+        // Компонент списка разрешений
+        function PermissionsList({ allPermissions, onSelectionChange }) {
+            const {
+                selectedPermissions,
+                handlePermissionClick,
+                isPermissionSelected,
+                clearSelectedPermissions,
+            } = usePermissions(allPermissions);
+
+            React.useEffect(() => {
+                if (onSelectionChange) {
+                    onSelectionChange(selectedPermissions);
+                }
+            }, [selectedPermissions, onSelectionChange]);
+
+            return (
+                <div className="permissions-list">
+                    <div className="permissions-header">
+                        <h2>Разрешения</h2>
+                        <button onClick={clearSelectedPermissions}>Очистить выбор</button>
+                        <div className="selected-count">
+                            Выбрано: {selectedPermissions.length}
+                        </div>
+                    </div>
+
+                    <div className="permissions-items">
+                        {allPermissions.map((permission) => {
+                            const isSelected = isPermissionSelected(permission.id);
+                            const hasDependencies = permission.dependencies && permission.dependencies.length > 0;
+
+                            return (
+                                <div
+                                    key={permission.id}
+                                    className={`permission-item ${isSelected ? 'selected' : ''} ${!permission.is_active ? 'inactive' : ''}`}
+                                    onClick={() => handlePermissionClick(permission)}
+                                >
+                                    <div className="permission-main">
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => {}}
+                                        />
+                                        <div className="permission-info">
+                                            <h3>{permission.name}</h3>
+                                            <p className="permission-code">{permission.code}</p>
+                                            <p className="permission-description">{permission.description}</p>
+                                        </div>
+                                    </div>
+
+                                    {hasDependencies && (
+                                        <div className="permission-dependencies">
+                                            <span className="dependencies-label">Зависимости:</span>
+                                            <ul>
+                                                {permission.dependencies.map((dep) => (
+                                                    <li key={dep.id}>
+                                                        {dep.name} ({dep.code})
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="selected-permissions">
+                        <h3>Выбранные разрешения:</h3>
+                        {selectedPermissions.length === 0 ? (
+                            <p>Ничего не выбрано</p>
+                        ) : (
+                            <ul>
+                                {selectedPermissions.map((permission) => (
+                                    <li key={permission.id}>
+                                        {permission.name} ({permission.code})
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Демо-приложение
+        function App() {
+            const mockPermissions = [
+                {
+                    id: '1',
+                    code: 'READ_USERS',
+                    name: 'Чтение пользователей',
+                    description: 'Позволяет просматривать список пользователей',
+                    is_active: true,
+                    dependencies: [],
+                    created: '2025-01-01T00:00:00Z',
+                },
+                {
+                    id: '2',
+                    code: 'WRITE_USERS',
+                    name: 'Запись пользователей',
+                    description: 'Позволяет создавать и редактировать пользователей',
+                    is_active: true,
+                    dependencies: [
+                        { id: '1', code: 'READ_USERS', name: 'Чтение пользователей' },
+                    ],
+                    created: '2025-01-01T00:00:00Z',
+                },
+                {
+                    id: '3',
+                    code: 'DELETE_USERS',
+                    name: 'Удаление пользователей',
+                    description: 'Позволяет удалять пользователей',
+                    is_active: true,
+                    dependencies: [
+                        { id: '1', code: 'READ_USERS', name: 'Чтение пользователей' },
+                        { id: '2', code: 'WRITE_USERS', name: 'Запись пользователей' },
+                    ],
+                    created: '2025-01-01T00:00:00Z',
+                },
+                {
+                    id: '4',
+                    code: 'READ_REPORTS',
+                    name: 'Чтение отчетов',
+                    description: 'Позволяет просматривать отчеты',
+                    is_active: true,
+                    dependencies: [],
+                    created: '2025-01-01T00:00:00Z',
+                },
+                {
+                    id: '5',
+                    code: 'EXPORT_REPORTS',
+                    name: 'Экспорт отчетов',
+                    description: 'Позволяет экспортировать отчеты в различные форматы',
+                    is_active: true,
+                    dependencies: [
+                        { id: '4', code: 'READ_REPORTS', name: 'Чтение отчетов' },
+                    ],
+                    created: '2025-01-01T00:00:00Z',
+                },
+                {
+                    id: '6',
+                    code: 'ADMIN_PANEL',
+                    name: 'Доступ к админ-панели',
+                    description: 'Полный доступ к административной панели',
+                    is_active: false,
+                    dependencies: [
+                        { id: '1', code: 'READ_USERS', name: 'Чтение пользователей' },
+                        { id: '2', code: 'WRITE_USERS', name: 'Запись пользователей' },
+                        { id: '3', code: 'DELETE_USERS', name: 'Удаление пользователей' },
+                    ],
+                    created: '2025-01-01T00:00:00Z',
+                },
+            ];
+
+            const handleSelectionChange = (selected) => {
+                console.log('Выбранные разрешения:', selected);
+                console.log('Коды:', selected.map(p => p.code));
+            };
+
+            return (
+                <div className="app-container">
+                    <h1>Демонстрация управления разрешениями</h1>
+                    <p style={{textAlign: 'center', color: '#666', marginBottom: '20px'}}>
+                        Кликайте на разрешения, чтобы выбрать их. Зависимости добавляются автоматически!
+                    </p>
+                    <PermissionsList
+                        allPermissions={mockPermissions}
+                        onSelectionChange={handleSelectionChange}
+                    />
+                </div>
+            );
+        }
+
+        // Рендеринг
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
